@@ -3,9 +3,29 @@
  * Moteur de regles complet de Catan (Les Colons de Catan - jeu de base).
  * Le serveur est autoritaire : le client n envoie que des intentions.
  */
+const crypto = require('crypto');
 const { createBoard } = require('./board');
 const { getMap } = require('./maps');
 const { activeMods, runHook } = require('./mods');
+
+/* --- hasard --------------------------------------------------------- */
+/* Math.random est un generateur pseudo-aleatoire : la suite des tirages
+   est previsible a partir de son etat interne. Tout ce qui doit etre
+   imprevisible dans une partie (des, pioche, vols, evenements) passe donc
+   par le generateur cryptographique du systeme. */
+
+/** Flottant vraiment aleatoire dans [0, 1). */
+function cryptoRandom() {
+  // 48 bits : le plus grand entier que readUIntBE rend exactement
+  return crypto.randomBytes(6).readUIntBE(0, 6) / 281474976710656;
+}
+
+/** Entier vraiment aleatoire dans [0, max), sans biais de troncature. */
+function randomInt(max) {
+  if (!(max > 0)) return 0;
+  if (crypto.randomInt) return crypto.randomInt(max);
+  return Math.floor(cryptoRandom() * max);
+}
 
 const RESOURCES = ['lumber', 'brick', 'wool', 'grain', 'ore'];
 
@@ -61,7 +81,7 @@ let cardSeq = 1;
 class Game {
   constructor(players, options) {
     options = options || {};
-    this.rng = options.rng || Math.random;
+    this.rng = options.rng || cryptoRandom;
     this.targetVP = options.targetVP || 10;
     const lim = options.limits || {};
     this.limits = {
@@ -143,10 +163,14 @@ class Game {
   /* utilitaires                                                        */
   /* ------------------------------------------------------------------ */
 
-  /** Evenement de mod : journal + grand message rouge chez tous les joueurs. */
-  addEvent(title, text) {
+  /** Evenement de mod : journal + grand message rouge chez tous les joueurs.
+   *  hexes : tuiles concernees, mises en avant sur le plateau par le client. */
+  addEvent(title, text, hexes) {
     this.eventSeq = (this.eventSeq || 0) + 1;
-    this.events.push({ id: this.eventSeq, title, text, t: Date.now() });
+    this.events.push({
+      id: this.eventSeq, title, text, t: Date.now(),
+      hexes: Array.isArray(hexes) ? hexes.slice() : []
+    });
     if (this.events.length > 10) this.events.shift();
     this.addLog('⚡ ' + title + ' : ' + text, 'event');
   }
@@ -568,8 +592,9 @@ class Game {
   do_roll(p) {
     const err = this.requireTurn(p); if (err) return err;
     if (this.phase !== 'roll') return { error: 'Vous ne pouvez pas lancer les des maintenant.' };
-    const d1 = 1 + Math.floor(this.rng() * 6);
-    const d2 = 1 + Math.floor(this.rng() * 6);
+    // chaque de est tire independamment, sans biais : 1 chance sur 6 par face
+    const d1 = 1 + randomInt(6);
+    const d2 = 1 + randomInt(6);
     this.dice = [d1, d2];
     const total = d1 + d2;
     this.addLog(p.name + ' lance les des : ' + d1 + ' + ' + d2 + ' = ' + total + '.', 'dice');
@@ -1029,7 +1054,7 @@ class Game {
   static fromSave(data) {
     const g = Object.create(Game.prototype);
     Object.assign(g, JSON.parse(JSON.stringify(data)));
-    g.rng = Math.random;
+    g.rng = cryptoRandom;
     g.mods = activeMods(data.modIds || []);
     delete g.modIds;
     // les nouvelles cartes developpement ne doivent pas reprendre un identifiant existant
@@ -1137,4 +1162,4 @@ class Game {
   }
 }
 
-module.exports = { Game, RESOURCES, RES_FR, COSTS, LIMITS, ROBBER_THRESHOLD };
+module.exports = { Game, RESOURCES, RES_FR, COSTS, LIMITS, ROBBER_THRESHOLD, cryptoRandom, randomInt };

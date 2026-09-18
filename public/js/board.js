@@ -284,6 +284,7 @@
 
       buildStatic(board) {
         const svg = this.svg;
+        this.boardData = board;
         while (svg.firstChild) svg.removeChild(svg.firstChild);
 
         const b = boundsOf(board.hexes);
@@ -311,6 +312,7 @@
         this.layers.buildings = el('g', {}, svg);
         this.layers.robber = el('g', {}, svg);
         this.layers.hints = el('g', {}, svg);
+        this.layers.fx = el('g', { class: 'fx-layer' }, svg);
 
         /* --- mer : un anneau de tuiles océan autour des terres (et dans les lacs) --- */
         const seas = seaCells(board.hexes);
@@ -447,6 +449,7 @@
           this.boardSig = sig;
           this.buildStatic(board);
         }
+        this.boardData = board;
 
         const L = this.layers;
         [L.roads, L.buildings, L.hints].forEach((g) => { while (g.firstChild) g.removeChild(g.firstChild); });
@@ -553,6 +556,28 @@
         const allowed = new Set(valid.robber || []);
         // voleur amical : seules les tuiles autorisées sont proposées
         for (const hit of hits) hit.classList.toggle('pick', !!pickHex && allowed.has(Number(hit.dataset.hex)));
+      },
+
+      /** Entoure des tuiles d un contour rouge neon qui enfle et se retracte.
+       *  Sert aux evenements de mods : on voit d un coup d oeil ce qui a bouge. */
+      flashHexes(ids, ms) {
+        const L = this.layers.fx;
+        const board = this.boardData;
+        if (!L || !board) return;
+        const clear = () => { while (L.firstChild) L.removeChild(L.firstChild); };
+        clearTimeout(this.fxTimer);
+        clear();
+        for (const hid of ids || []) {
+          const h = board.hexes[hid];
+          if (!h) continue;
+          const g = el('g', { transform: 'translate(' + h.x + ',' + h.y + ')' }, L);
+          const pulse = el('g', { class: 'hex-flash' }, g);
+          const pts = hexPoints(0, 0, .95);
+          el('polygon', { points: pts, class: 'hex-flash-halo' }, pulse);
+          el('polygon', { points: pts, class: 'hex-flash-glow' }, pulse);
+          el('polygon', { points: pts, class: 'hex-flash-core' }, pulse);
+        }
+        this.fxTimer = setTimeout(clear, ms || 2000);
       },
 
       setMode(mode) {

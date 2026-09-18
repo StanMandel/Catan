@@ -14,11 +14,12 @@
  *     }
  *   }
  *
- * Un mod qui declenche un evenement appelle game.addEvent(titre, texte) :
+ * Un mod qui declenche un evenement appelle game.addEvent(titre, texte, tuiles) :
  * l evenement est note au journal et affiche en grand, en rouge, chez tous les joueurs.
+ * Les tuiles passees en 3e argument sont entourees d un contour rouge neon sur le plateau.
  */
 
-const EVENT_CHANCE = 1 / 15;
+const EVENT_CHANCE = 1 / 25;
 const BAD_OMEN_CHANCE = 1 / 20;
 
 const TERRAIN_FR = {
@@ -43,7 +44,8 @@ function swapTiles(game) {
   for (const key of ['terrain', 'resource', 'number', 'pips']) {
     const t = a[key]; a[key] = b[key]; b[key] = t;
   }
-  game.addEvent('Événement perturbant', 'La terre tremble : les tuiles ' + before + ' ont été interverties !');
+  // les deux tuiles sont renvoyees au client : il les entoure d un contour rouge neon
+  game.addEvent('Événement perturbant', 'La terre tremble : les tuiles ' + before + ' ont été interverties !', [a.id, b.id]);
 }
 
 /** Le voleur part seul sur une tuile au hasard, sans rien voler. */
@@ -109,7 +111,7 @@ const MODS = [
     name: 'Événement perturbant',
     icon: '🔀',
     category: 'Événement',
-    chance: '1 chance sur 15 par lancer',
+    chance: '1 chance sur 25 par lancer',
     effect: 'Plateau',
     desc: 'Deux tuiles de la carte échangent leur terrain et leur jeton numéroté. Les tuiles fixes d’une carte ne bougent pas.',
     hooks: {
@@ -121,7 +123,7 @@ const MODS = [
     name: 'Nomade',
     icon: '🧭',
     category: 'Événement',
-    chance: '1 chance sur 15 par lancer (hors 7)',
+    chance: '1 chance sur 25 par lancer (hors 7)',
     effect: 'Voleur',
     desc: 'Le voleur quitte sa tuile et s’installe seul sur une tuile au hasard. Il ne vole rien.',
     hooks: {

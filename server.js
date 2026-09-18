@@ -11,7 +11,7 @@ const path = require('path');
 const os = require('os');
 const crypto = require('crypto');
 const { WSServer } = require('./src/ws-server');
-const { Game, LIMITS, ROBBER_THRESHOLD } = require('./src/game');
+const { Game, LIMITS, ROBBER_THRESHOLD, cryptoRandom, randomInt } = require('./src/game');
 const { modList, sanitizeMods } = require('./src/mods');
 const { createBoard, boardPreview } = require('./src/board');
 const { getMap, mapList } = require('./src/maps');
@@ -317,7 +317,8 @@ function regenerateBoard(room) {
   room.board = createBoard({
     map: room.settings.map,
     random: room.settings.randomBoard,
-    fair: room.settings.fairBoard
+    fair: room.settings.fairBoard,
+    rng: cryptoRandom   // disposition tiree au vrai hasard, pas au pseudo-hasard
   });
 }
 
@@ -775,9 +776,10 @@ wss.on('connection', (conn) => {
           break;
         }
         if (!room.members.every((m) => m.ready || m.bot || m.id === room.hostId)) { fail('Tous les joueurs doivent etre prets.'); break; }
+        // ordre de jeu tire au vrai hasard
         const order = room.members.slice();
         for (let i = order.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
+          const j = randomInt(i + 1);
           const t = order[i]; order[i] = order[j]; order[j] = t;
         }
         room.members = order;

@@ -506,6 +506,56 @@ body.no-select, body.no-select * { user-select: none !important; -webkit-user-se
 .die.rolling { animation: shake .5s ease; }
 @keyframes shake { 0%,100%{transform:rotate(0)} 25%{transform:rotate(-14deg) translateY(-6px)} 75%{transform:rotate(14deg) translateY(-4px)} }
 .dice-total { font-weight: 800; font-size: 17px; background: rgba(20,12,6,.8); padding: 6px 10px; border-radius: 8px; border: 1px solid var(--panel-line); }
+
+/* resultat du jet : grandes faces au centre de l ecran, le temps de le lire.
+   Le petit bandeau du coin garde ensuite le resultat sous les yeux. */
+.dice-flash {
+  position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  z-index: 66; pointer-events: none; opacity: 0;
+  display: flex; flex-direction: column; align-items: center; gap: 16px;
+}
+.dice-flash.hidden { display: none; }
+/* halo sombre : sans lui les des blancs se perdent sur les tuiles claires */
+.dice-flash::before {
+  content: ''; position: absolute; left: 50%; top: 50%; z-index: -1;
+  width: 480px; height: 360px; transform: translate(-50%, -50%);
+  background: radial-gradient(ellipse at center, rgba(8,4,0,.66) 0%, rgba(8,4,0,.36) 45%, rgba(8,4,0,0) 72%);
+}
+.dice-flash.show { animation: diceFlash 1.7s ease forwards; }
+.df-dice { display: flex; gap: 22px; }
+.df-die {
+  width: 104px; height: 104px; box-sizing: border-box;
+  display: grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr);
+  gap: 6px; padding: 15px; border-radius: 18px;
+  background: linear-gradient(150deg, #fffdf7 0%, #f3ead7 55%, #dbcbad 100%);
+  border: 2px solid #b9a685;
+  box-shadow: 0 18px 44px rgba(0,0,0,.6), inset 0 0 18px rgba(140,115,80,.3);
+}
+.dice-flash.show .df-die { animation: diceDrop .5s cubic-bezier(.2,1.5,.4,1) both; }
+.dice-flash.show .df-die:last-child { animation-delay: .1s; }
+.df-pip {
+  width: 18px; height: 18px; border-radius: 50%;
+  align-self: center; justify-self: center;
+  background: radial-gradient(circle at 34% 30%, #4a4a4a 0%, #171717 70%);
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, .28);
+}
+.df-total {
+  font-size: 30px; font-weight: 900; color: #ffe7a8;
+  padding: 6px 22px; border-radius: 12px;
+  background: rgba(20, 12, 6, .82); border: 2px solid var(--panel-line);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, .5);
+}
+@keyframes diceFlash {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(.85); }
+  12%  { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  82%  { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.12); }
+}
+@keyframes diceDrop {
+  0%   { transform: translateY(-34px) rotate(-16deg); }
+  60%  { transform: translateY(0) rotate(6deg); }
+  100% { transform: translateY(0) rotate(0); }
+}
 .board-tools { position: absolute; right: 12px; top: 66px; display: flex; flex-direction: column; gap: 6px; z-index: 4; }
 
 /* joueurs */
@@ -595,6 +645,26 @@ body.no-select, body.no-select * { user-select: none !important; -webkit-user-se
   100% { transform: translateX(-50%) scale(1); }
 }
 @keyframes eventOut { to { opacity: 0; transform: translateX(-50%) translateY(-20px) scale(.95); } }
+
+/* tuiles touchees par un evenement : contour rouge neon qui enfle et se retracte */
+.fx-layer { pointer-events: none; }
+.hex-flash {
+  transform-box: fill-box; transform-origin: 50% 50%;
+  animation: hexFlashPulse .66s ease-in-out infinite alternate, hexFlashFade 2s ease both;
+}
+.hex-flash-halo { fill: rgba(255, 40, 34, .14); stroke: #ff2a20; stroke-width: .3; opacity: .28; stroke-linejoin: round; }
+.hex-flash-glow { fill: none; stroke: #ff3b30; stroke-width: .15; opacity: .7; stroke-linejoin: round; }
+.hex-flash-core { fill: none; stroke: #ffd9d5; stroke-width: .05; stroke-linejoin: round; }
+@keyframes hexFlashPulse {
+  from { transform: scale(1); }
+  to   { transform: scale(1.09); }
+}
+@keyframes hexFlashFade {
+  0%   { opacity: 0; }
+  10%  { opacity: 1; }
+  82%  { opacity: 1; }
+  100% { opacity: 0; }
+}
 
 /* main du joueur : socle fixe en bas du plateau */
 .hand-dock {
@@ -807,16 +877,20 @@ body.no-select, body.no-select * { user-select: none !important; -webkit-user-se
 /* ------------- cartes gagnees : entree en grand, puis vol vers le socle ------------- */
 .gain-overlay {
   position: fixed; inset: 0; z-index: 64;
-  display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
-  gap: 14px; padding: 24px;
   pointer-events: none;   /* purement decoratif : ne bloque jamais un clic */
 }
 .gain-overlay.hidden { display: none; }
 
+/* --cx / --cy : centre du plateau, pose en JS. Chaque carte en jaillit,
+   grandit, puis vient prendre sa place dans l eventail. */
+.gain-card,
+.gain-more {
+  position: absolute; left: var(--cx, 50%); top: var(--cy, 50%);
+  animation: gain-in .46s cubic-bezier(.2, .9, .3, 1.35) both;
+}
 .gain-card {
-  width: 132px; flex: none; text-align: center; opacity: 0;
-  animation: gain-in .42s cubic-bezier(.2, .9, .3, 1.35) both;
-  filter: drop-shadow(0 14px 26px rgba(0, 0, 0, .6));
+  width: 132px; text-align: center; opacity: 0;
+  filter: drop-shadow(0 16px 30px rgba(0, 0, 0, .65));
 }
 .gain-card img { display: block; width: 132px; height: 191px; object-fit: contain; }
 .gain-name {
@@ -824,24 +898,41 @@ body.no-select, body.no-select * { user-select: none !important; -webkit-user-se
   color: var(--gold); text-shadow: 0 2px 6px rgba(0, 0, 0, .85);
 }
 .gain-more {
-  align-self: center; font-size: 22px; font-weight: 800; color: var(--gold);
+  font-size: 22px; font-weight: 800; color: var(--gold); white-space: nowrap;
   text-shadow: 0 2px 6px rgba(0, 0, 0, .85);
-  animation: gain-in .42s cubic-bezier(.2, .9, .3, 1.35) both;
 }
 
+/* place finale d une carte dans l eventail : ecart, courbure et inclinaison */
 @keyframes gain-in {
-  0%   { opacity: 0; transform: translateY(110px) scale(.55) rotate(-7deg); }
-  72%  { opacity: 1; transform: translateY(-12px) scale(1.07) rotate(1.5deg); }
-  100% { opacity: 1; transform: translateY(0) scale(1) rotate(0deg); }
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(.1) rotate(0deg);
+  }
+  70% {
+    opacity: 1;
+    transform: translate(calc(-50% + var(--gx, 0px)), calc(-50% + var(--gy, 0px) - 14px))
+               scale(1.08) rotate(var(--rot, 0deg));
+  }
+  100% {
+    opacity: 1;
+    transform: translate(calc(-50% + var(--gx, 0px)), calc(-50% + var(--gy, 0px)))
+               scale(1) rotate(var(--rot, 0deg));
+  }
 }
 
 /* etat stable : l animation d entree est retiree en JS pour liberer transform */
-.gain-card.in { opacity: 1; transform: none; }
+.gain-card.in {
+  opacity: 1;
+  transform: translate(calc(-50% + var(--gx, 0px)), calc(-50% + var(--gy, 0px)))
+             scale(1) rotate(var(--rot, 0deg));
+}
 
 /* vol vers la case correspondante de l inventaire */
 .gain-card.flying {
   transition: transform .38s cubic-bezier(.55, 0, .75, .2), opacity .38s ease-in;
-  transform: translate(var(--fx, 0), var(--fy, 0)) scale(var(--fs, .2)) rotate(6deg);
+  transform: translate(calc(-50% + var(--gx, 0px) + var(--fx, 0px)),
+                       calc(-50% + var(--gy, 0px) + var(--fy, 0px)))
+             scale(var(--fs, .2)) rotate(6deg);
   opacity: .15;
 }
 
@@ -854,7 +945,11 @@ body.no-select, body.no-select * { user-select: none !important; -webkit-user-se
 }
 
 @media (max-width: 720px) {
-  .gain-overlay { gap: 8px; padding: 12px; }
+  .df-dice { gap: 14px; }
+  .df-die { width: 76px; height: 76px; padding: 11px; gap: 4px; border-radius: 13px; }
+  .df-pip { width: 13px; height: 13px; }
+  .df-total { font-size: 23px; padding: 4px 16px; }
+  .dice-flash::before { width: 320px; height: 250px; }
   .gain-card { width: 92px; }
   .gain-card img { width: 92px; height: 133px; }
   .gain-name { font-size: 11px; }
@@ -863,9 +958,21 @@ body.no-select, body.no-select * { user-select: none !important; -webkit-user-se
 /* mouvement reduit : on garde le rythme et les sons, on retire les deplacements */
 @media (prefers-reduced-motion: reduce) {
   @keyframes gain-in {
-    0%   { opacity: 0; }
-    100% { opacity: 1; }
+    0%   { opacity: 0; transform: translate(calc(-50% + var(--gx, 0px)), calc(-50% + var(--gy, 0px))); }
+    100% { opacity: 1; transform: translate(calc(-50% + var(--gx, 0px)), calc(-50% + var(--gy, 0px))); }
   }
-  .gain-card.flying { transition: opacity .2s linear; transform: none; opacity: 0; }
+  .hex-flash { animation: hexFlashFade 2s ease both; }   /* le contour reste, sans pulsation */
+  .gain-card.flying {
+    transition: opacity .2s linear;
+    transform: translate(calc(-50% + var(--gx, 0px)), calc(-50% + var(--gy, 0px)));
+    opacity: 0;
+  }
   .res-card.bump { animation: none; }
+  .dice-flash.show .df-die { animation: none; }
+  @keyframes diceFlash {
+    0%   { opacity: 0; }
+    12%  { opacity: 1; }
+    82%  { opacity: 1; }
+    100% { opacity: 0; }
+  }
 }

@@ -57,8 +57,8 @@ installer de leur côté.
    - bouton **Mods** pour activer du contenu additionnel. Chaque mod d'événement a
      une chance de se déclencher à chaque lancer de dés, avec un grand message
      rouge chez tous les joueurs :
-     - *Événement perturbant* (1 chance sur 15) : deux tuiles de la carte sont interverties (terrain et jeton) ;
-     - *Nomade* (1 chance sur 15) : le voleur se déplace seul sur une tuile au hasard, sans rien voler (pas sur un 7) ;
+     - *Événement perturbant* (1 chance sur 25) : deux tuiles de la carte sont interverties (terrain et jeton), entourées deux secondes d'un contour rouge néon ;
+     - *Nomade* (1 chance sur 25) : le voleur se déplace seul sur une tuile au hasard, sans rien voler (pas sur un 7) ;
      - *Mauvais augure* (1 chance sur 20) : le joueur le plus développé perd une pièce
        (route, colonie ou bateau ; jamais une ville, ni sa dernière construction).
 

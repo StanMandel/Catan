@@ -761,7 +761,7 @@
     renderLog(state);
     renderSidePlayers(state);
     renderChat($('game-chat-log'), (room || S.room || {}).chat || []);
-    handleDice(state);
+    handleDice(state, first);
     handleEvents(state, first);
     handleSounds(state, first);
     handleResourceGain(state, first);
@@ -979,14 +979,39 @@
   }
 
   /* ------------------------------------------------------------------ */
+  /* rythme : les animations se suivent au lieu de se superposer         */
+  /* ------------------------------------------------------------------ */
+
+  const STEP_PAUSE = 320;   // micro pause entre deux animations
+
+  /** Occupe la scene pendant `duration` ms et joue `fn` des qu elle est libre.
+   *  Un jet de des, une recolte et un evenement s enchainent ainsi toujours
+   *  dans l ordre, separes par une courte respiration. */
+  function seqRun(duration, fn) {
+    const now = Date.now();
+    const wait = Math.max(0, (S.seqUntil || 0) - now);
+    S.seqUntil = Math.max(S.seqUntil || 0, now) + duration + STEP_PAUSE;
+    if (wait > 0) setTimeout(fn, wait); else fn();
+    return wait;
+  }
+
+  /* ------------------------------------------------------------------ */
   /* cartes gagnees : entree en grand, puis vol vers l inventaire        */
   /* ------------------------------------------------------------------ */
 
   const GAIN_MAX = 8;        // au-dela, le surplus est resume par un "+N"
-  const GAIN_STAGGER = 260;  // ms entre deux entrees de carte
-  const GAIN_IN = 420;       // duree de l entree : doit suivre gain-in dans le CSS
+  const GAIN_STAGGER = 190;  // ms entre deux entrees de carte
+  const GAIN_IN = 460;       // duree de l entree : doit suivre gain-in dans le CSS
   const GAIN_FLY = 380;      // duree du vol vers le socle
-  const GAIN_HOLD = 420;     // pause une fois toutes les cartes en place
+  const GAIN_HOLD = 520;     // pause une fois l eventail complet
+
+  /** Centre du plateau, en coordonnees ecran : les cartes en jaillissent. */
+  function boardCenter() {
+    const holder = $('board-holder');
+    const r = holder ? holder.getBoundingClientRect() : null;
+    if (!r || !r.width) return { x: window.innerWidth / 2, y: window.innerHeight / 2, w: window.innerWidth };
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width };
+  }
 
   /** Detecte les ressources gagnees en comparant la main a l envoi precedent.
    *  Couvre d un coup la production, le commerce, le monopole et l invention. */
@@ -1013,19 +1038,36 @@
     const list = (S.gainQueue || []).shift();
     if (!list) { S.gainBusy = false; return; }
     S.gainBusy = true;
-    showGain(list, nextGain);
+    // la recolte attend la fin du jet de des (et de la recolte precedente)
+    const n = Math.min(list.length, GAIN_MAX);
+    const est = n * GAIN_STAGGER + GAIN_IN + GAIN_HOLD + n * 60 + GAIN_FLY + 120;
+    seqRun(est, () => showGain(list, nextGain));
   }
 
   function showGain(list, done) {
     const overlay = $('gain-overlay');
     const shown = list.slice(0, GAIN_MAX);
     const extra = list.length - shown.length;
+    const center = boardCenter();
     overlay.innerHTML = '';
+    // les cartes naissent au centre du plateau et s y deploient en eventail
+    overlay.style.setProperty('--cx', center.x + 'px');
+    overlay.style.setProperty('--cy', center.y + 'px');
     overlay.classList.remove('hidden');
+
+    // ecart et inclinaison d une carte a l autre : l eventail reste sur le plateau
+    const n = shown.length;
+    const step = n > 1 ? Math.max(40, Math.min(108, (center.w * 0.86) / n)) : 0;
+    const tilt = n > 1 ? Math.min(9, 44 / n) : 0;
 
     const els = shown.map((r, i) => {
       const d = document.createElement('div');
+      const k = i - (n - 1) / 2;          // position par rapport au centre de l eventail
       d.className = 'gain-card';
+      d.style.setProperty('--gx', (k * step).toFixed(1) + 'px');
+      d.style.setProperty('--gy', (Math.pow(Math.abs(k), 1.7) * 7).toFixed(1) + 'px');
+      d.style.setProperty('--rot', (k * tilt).toFixed(2) + 'deg');
+      d.style.zIndex = String(10 + (n - Math.round(Math.abs(k))));
       d.style.animationDelay = (i * GAIN_STAGGER) + 'ms';
       d.innerHTML = '<img src="img/ressources/' + r + '.png" alt="' + esc(RES_FR[r]) + '">' +
         '<span class="gain-name">' + esc(RES_FR[r]) + '</span>';
@@ -1035,6 +1077,7 @@
     if (extra > 0) {
       const more = document.createElement('div');
       more.className = 'gain-more';
+      more.style.setProperty('--gy', '156px');
       more.style.animationDelay = (shown.length * GAIN_STAGGER) + 'ms';
       more.textContent = '+' + extra;
       overlay.appendChild(more);
@@ -1130,12 +1173,14 @@
     // tour
     if (state.phase === 'ended') setBtn(turn, '🏆', 'Partie terminée', 'turn wait', false);
     else if (!mine) setBtn(turn, '⏳', 'Tour de ' + (cur ? cur.name : '…'), 'turn wait', false);
-    else if (state.phase === 'roll') setBtn(turn, '🎲', 'Lancer les dés', 'turn roll', true, () => Net.action('roll'));
+    else if (state.phase === 'roll') setBtn(turn, '🎲', 'Lancer les dés', 'turn roll', true, () => { hideTurnAnnounce(); Net.action('roll'); });
     else if (state.phase === 'main') {
       setBtn(turn, '➜', 'Terminer le tour', 'turn end', true, () => { setMode(null); Net.action('endTurn'); });
     } else if (state.phase === 'setup') setBtn(turn, '🏠', 'Placement', 'turn wait', false);
     else setBtn(turn, '🥷', 'Voleur…', 'turn wait', false);
   }
+
+  const ANNOUNCE_MS = 1650;   // doit suivre l animation announce du CSS
 
   /** Grande annonce rapide quand c est a vous de lancer les des. */
   function announceTurn(state) {
@@ -1145,13 +1190,32 @@
     if (!rollNow) return;
     if (S.announcedTurn === key) return;
     S.announcedTurn = key;
-    Sound.play('tonTour');
-    const el = $('turn-announce');
-    el.classList.add('hidden');
-    void el.offsetWidth; // relance l animation
-    el.classList.remove('hidden');
+    S.announcePending = true;
+    seqRun(ANNOUNCE_MS, () => {
+      // le joueur a pu lancer les des avant que la scene ne se libere
+      if (!S.announcePending) return;
+      const st = S.state;
+      if (!st || !st.you || !st.you.isMyTurn || st.phase !== 'roll') { S.announcePending = false; return; }
+      Sound.play('tonTour');
+      const el = $('turn-announce');
+      el.classList.add('hidden');
+      void el.offsetWidth; // relance l animation
+      el.classList.remove('hidden');
+      clearTimeout(S.announceTimer);
+      S.announceTimer = setTimeout(() => hideTurnAnnounce(), ANNOUNCE_MS);
+    });
+    S.announceReserveEnd = S.seqUntil;
+  }
+
+  /** Retire l annonce << a vous de jouer >> : le jet de des prend la suite. */
+  function hideTurnAnnounce() {
+    const pending = S.announcePending;
+    S.announcePending = false;
     clearTimeout(S.announceTimer);
-    S.announceTimer = setTimeout(() => el.classList.add('hidden'), 1650);
+    const el = $('turn-announce');
+    if (el) el.classList.add('hidden');
+    // annonce annulee avant meme d etre montree : on rend la scene tout de suite
+    if (pending && S.seqUntil === S.announceReserveEnd) S.seqUntil = Date.now();
   }
 
   function renderDev(state) {
@@ -1362,7 +1426,43 @@
     box.scrollTop = atBottom ? box.scrollHeight : keep;
   }
 
-  function handleDice(state) {
+  /* cases occupees sur la grille 3x3 d une face, numerotees de 1 a 9 */
+  const DICE_PIPS = {
+    1: [5], 2: [1, 9], 3: [1, 5, 9],
+    4: [1, 3, 7, 9], 5: [1, 3, 5, 7, 9], 6: [1, 3, 4, 6, 7, 9]
+  };
+  const DICE_FLASH_MS = 1700;   // doit suivre l animation diceFlash du CSS
+
+  function drawDieFace(el, value) {
+    el.innerHTML = '';
+    const pips = DICE_PIPS[value] || [];
+    for (let cell = 1; cell <= 9; cell++) {
+      const span = document.createElement('span');
+      if (pips.indexOf(cell) !== -1) span.className = 'df-pip';
+      el.appendChild(span);
+    }
+  }
+
+  /** Montre le jet en grand au centre de l ecran, puis s efface tout seul.
+   *  Le petit bandeau du coin garde le resultat affiche pour la suite du tour. */
+  function flashDice(values) {
+    const flash = $('dice-flash');
+    if (!flash) return;
+    drawDieFace($('df-die1'), values[0]);
+    drawDieFace($('df-die2'), values[1]);
+    $('df-total').textContent = values[0] + values[1];
+    clearTimeout(S.diceFlashTimer);
+    // on relance l animation depuis le debut, meme si le jet precedent est encore a l ecran
+    flash.classList.remove('hidden', 'show');
+    void flash.offsetWidth;
+    flash.classList.add('show');
+    S.diceFlashTimer = setTimeout(() => {
+      flash.classList.remove('show');
+      flash.classList.add('hidden');
+    }, DICE_FLASH_MS);
+  }
+
+  function handleDice(state, first) {
     const box = $('dice-box');
     if (!state.dice) { box.classList.add('hidden'); S.lastDice = null; return; }
     box.classList.remove('hidden');
@@ -1377,6 +1477,13 @@
         void d.offsetWidth;
         d.classList.add('rolling');
       });
+      // l annonce << a vous de jouer >> laisse la place au resultat du jet
+      hideTurnAnnounce();
+      // en arrivant dans une partie deja lancee, on n annonce pas un jet deja joue
+      if (!first) {
+        const values = state.dice.slice();
+        seqRun(DICE_FLASH_MS, () => flashDice(values));
+      }
     }
   }
 
@@ -1394,11 +1501,20 @@
     if (!S.eventShowing) showNextEvent();
   }
 
+  const EVENT_HOLD = 2000;      // contour neon des tuiles : doit suivre hexFlash dans le CSS
+
   function showNextEvent() {
-    const banner = $('event-banner');
     const e = (S.eventQueue || []).shift();
     if (!e) { S.eventShowing = false; return; }
     S.eventShowing = true;
+    // l evenement attend la fin du jet de des, puis la recolte attend la sienne
+    seqRun(EVENT_HOLD, () => playEvent(e));
+  }
+
+  function playEvent(e) {
+    const banner = $('event-banner');
+    // tuiles touchees : contour rouge neon qui enfle et se retracte
+    if (e.hexes && e.hexes.length) Board.flashHexes(e.hexes, EVENT_HOLD);
     $('eb-title').textContent = e.title;
     $('eb-text').textContent = e.text;
     banner.classList.remove('hidden', 'leaving');
