@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Catan — réseau local</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpolygon points='16,2 29,9 29,23 16,30 3,23 3,9' fill='%23e0a03a' stroke='%237a4a1d' stroke-width='2'/%3E%3C/svg%3E">
+</head>
+<body>
+
+<header id="topbar">
+  <div class="brand">
+    <svg viewBox="0 0 32 32" class="brand-hex" aria-hidden="true"><polygon points="16,2 29,9 29,23 16,30 3,23 3,9"/></svg>
+    <span>CATAN</span>
+  </div>
+  <div class="top-right">
+    <span id="conn-status" class="conn offline">Connexion…</span>
+    <div id="sound-wrap" class="sound-wrap">
+      <button id="btn-sound" class="ghost small" title="Couper ou remettre les effets sonores" aria-pressed="false">🔊</button>
+      <input id="sound-volume" class="sound-volume" type="range" min="0" max="100" step="5" value="80"
+             title="Volume des effets sonores" aria-label="Volume des effets sonores">
+    </div>
+    <button id="btn-save" class="ghost small hidden" title="Sauvegarder la partie pour la reprendre plus tard">💾 Sauvegarder</button>
+    <button id="btn-players" class="ghost small hidden">👥 Joueurs</button>
+    <button id="btn-rules" class="ghost small">Règles &amp; coûts</button>
+    <button id="btn-quit" class="danger small hidden">Quitter la partie</button>
+  </div>
+</header>
+
+<!-- ============================== ACCUEIL ============================== -->
+<main id="screen-home" class="screen active">
+  <div class="home-wrap">
+
+    <!-- étape 1 : pseudo -->
+    <section id="home-name" class="card home-step name-step">
+      <svg viewBox="0 0 32 32" class="welcome-hex" aria-hidden="true"><polygon points="16,2 29,9 29,23 16,30 3,23 3,9"/></svg>
+      <h1>Bienvenue sur Catan</h1>
+      <p class="hint">Choisissez le pseudo que verront les autres joueurs.</p>
+      <form id="name-form" class="name-form">
+        <input id="input-name" maxlength="16" placeholder="Votre pseudo" autocomplete="off">
+        <button class="primary big">Continuer</button>
+      </form>
+    </section>
+
+    <!-- étape 2 : créer ou rejoindre -->
+    <section id="home-choice" class="home-step hidden">
+      <div class="choice-hello">
+        <h2>Bonjour <span id="hello-name"></span> !</h2>
+        <button id="btn-change-name" class="ghost small">Changer de pseudo</button>
+      </div>
+      <div class="choice-grid">
+        <button id="btn-go-create" class="choice-btn">
+          <span class="choice-icon">🏗️</span>
+          <span class="choice-label">Créer une partie</span>
+          <span class="choice-sub">En réseau ou en solo contre l'ordinateur</span>
+        </button>
+        <button id="btn-go-join" class="choice-btn">
+          <span class="choice-icon">🤝</span>
+          <span class="choice-label">Rejoindre une partie</span>
+          <span class="choice-sub">Avec un code ou dans la liste du réseau</span>
+        </button>
+      </div>
+      <p class="hint center">Vos amis sur le même réseau se connectent à l'adresse affichée dans la console du serveur.</p>
+    </section>
+
+    <!-- étape 3a : créer -->
+    <section id="home-create" class="home-step hidden">
+      <button class="ghost small btn-back">← Retour</button>
+      <div class="home-cols">
+        <section class="card">
+          <h2>Partie en réseau</h2>
+          <label>Nom du salon
+            <input id="create-name" maxlength="24" placeholder="Partie du vendredi">
+          </label>
+          <label>Joueurs max
+            <select id="create-max">
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4" selected>4</option>
+              <option value="5">5</option>
+              <option value="6">6</option>
+            </select>
+          </label>
+          <div class="vp-slider">
+            <div class="vp-head"><span>Points pour gagner</span><span class="vp-value"><b class="vp-out">10</b><small class="vp-pace"></small></span></div>
+            <input type="range" id="create-vp" class="vp-range" min="8" max="20" step="1" value="10">
+            <div class="vp-ticks"></div>
+          </div>
+          <label>Mot de passe (facultatif)
+            <input id="create-pass" maxlength="16" placeholder="laisser vide = ouvert">
+          </label>
+          <label class="check"><input type="checkbox" id="create-random" checked> Plateau aléatoire</label>
+          <label class="check"><input type="checkbox" id="create-fair" checked> Éviter 6 et 8 adjacents</label>
+          <button id="btn-create" class="primary big">Créer le salon</button>
+          <p class="hint">La carte se choisit ensuite dans le salon.</p>
+        </section>
+
+        <section class="card">
+          <h2>Partie solo</h2>
+          <p class="hint">Une partie privée contre l'ordinateur. Vous choisirez la carte dans le salon avant de lancer.</p>
+          <label style="margin-top:12px">Adversaires IA
+            <select id="solo-bots">
+              <option value="0">Aucun (entraînement)</option>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3" selected>3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+            </select>
+          </label>
+          <div class="vp-slider">
+            <div class="vp-head"><span>Points pour gagner</span><span class="vp-value"><b class="vp-out">10</b><small class="vp-pace"></small></span></div>
+            <input type="range" id="solo-vp" class="vp-range" min="8" max="20" step="1" value="10">
+            <div class="vp-ticks"></div>
+          </div>
+          <button id="btn-solo" class="primary big">Jouer en solo</button>
+        </section>
+      </div>
+
+      <section class="card saves-card">
+        <div class="saves-head">
+          <h2>Reprendre une partie</h2>
+          <button id="btn-refresh-saves" class="ghost small" title="Actualiser">↻ Actualiser</button>
+        </div>
+        <p class="hint">Les parties sont sauvegardées automatiquement pendant le jeu (et à l'arrêt du serveur). Les sauvegardes manuelles se font avec 💾 en haut de l'écran de jeu.</p>
+        <div id="save-list" class="save-list"><p class="empty">Aucune partie sauvegardée.</p></div>
+      </section>
+    </section>
+
+    <!-- étape 3b : rejoindre -->
+    <section id="home-join" class="home-step hidden">
+      <button class="ghost small btn-back">← Retour</button>
+      <section class="card join-card">
+        <h2>Rejoindre une partie</h2>
+        <div class="row">
+          <input id="join-code" maxlength="4" placeholder="CODE" class="code-input" autocomplete="off">
+          <button id="btn-join-code" class="primary">Rejoindre</button>
+        </div>
+        <h3>Parties en cours sur le réseau</h3>
+        <div id="room-list" class="room-list"><p class="empty">Aucune partie pour le moment.</p></div>
+      </section>
+    </section>
+  </div>
+</main>
+
+<!-- ============================== SALON ============================== -->
+<main id="screen-lobby" class="screen">
+  <div class="lobby-wrap">
+    <section class="card lobby-main">
+      <div class="lobby-head">
+        <div>
+          <h2 id="lobby-name">Salon</h2>
+          <p class="hint">Code du salon : <strong id="lobby-code" class="code-badge">----</strong></p>
+        </div>
+        <button id="btn-leave" class="ghost">Quitter</button>
+      </div>
+
+      <h3>Joueurs</h3>
+      <div id="lobby-players" class="lobby-players"></div>
+      <button id="btn-add-bot" class="ghost small add-bot hidden">+ Ajouter un adversaire IA</button>
+
+      <div id="resume-panel" class="resume-panel hidden">
+        <h3>♻️ Reprise de la partie</h3>
+        <p id="resume-info" class="hint"></p>
+        <div id="resume-seats" class="resume-seats"></div>
+        <p class="hint">Chaque joueur prend sa place. Les places libres seront jouées par l'ordinateur.</p>
+      </div>
+
+      <p class="hint">Les couleurs sont attribuées automatiquement au lancement de la partie.</p>
+
+      <div id="game-settings" class="game-settings">
+        <div class="settings-title">
+          <h3>Réglages de la partie</h3>
+          <button id="btn-mods" class="ghost small">🧩 Mods <span id="mods-count"></span></button>
+        </div>
+        <div id="mods-active" class="mods-active"></div>
+        <p id="settings-note" class="hint hidden">Seul l'hôte peut modifier les réglages.</p>
+
+        <div class="vp-slider">
+            <div class="vp-head"><span>Points pour gagner</span><span class="vp-value"><b class="vp-out">10</b><small class="vp-pace"></small></span></div>
+            <input type="range" id="set-vp" class="vp-range" min="8" max="20" step="1" value="10">
+            <div class="vp-ticks"></div>
+          </div>
+        <p id="vp-warn" class="hint warn hidden"></p>
+
+        <div class="settings-grid">
+          <fieldset class="setting-group">
+            <legend>Mise en place</legend>
+            <label class="num-row">Colonies de départ <input type="number" id="set-start-settlements" data-setting="startSettlements" min="1" max="5"></label>
+            <label class="num-row">Routes de départ <input type="number" id="set-start-roads" data-setting="startRoads" min="0" max="10"></label>
+          </fieldset>
+
+          <fieldset class="setting-group">
+            <legend>Voleur</legend>
+            <label class="check"><input type="checkbox" id="set-friendly"> Voleur amical</label>
+            <p class="hint">Il bloque toujours sa tuile mais ne prend jamais de cartes.</p>
+            <label class="num-row" id="row-threshold">Vole au-delà de <input type="number" id="set-threshold" data-setting="robberThreshold" min="3" max="30"></label>
+            <p class="hint" id="threshold-hint">Sur un 7, chaque main de plus de 7 cartes en perd la moitié.</p>
+          </fieldset>
+
+          <fieldset class="setting-group">
+            <legend>Pièces par joueur</legend>
+            <label class="num-row">Routes <input type="number" id="set-limit-road" data-limit="road" min="5" max="40"></label>
+            <label class="num-row">Colonies <input type="number" id="set-limit-settlement" data-limit="settlement" min="2" max="15"></label>
+            <label class="num-row">Villes <input type="number" id="set-limit-city" data-limit="city" min="0" max="12"></label>
+          </fieldset>
+
+          <fieldset class="setting-group">
+            <legend>Plateau</legend>
+            <label class="check"><input type="checkbox" id="set-random"> Plateau aléatoire</label>
+            <label class="check"><input type="checkbox" id="set-fair"> Éviter 6 et 8 adjacents</label>
+          </fieldset>
+        </div>
+      </div>
+
+      <div class="lobby-actions">
+        <button id="btn-ready" class="ghost big">Je suis prêt</button>
+        <button id="btn-start" class="primary big">Lancer la partie</button>
+      </div>
+    </section>
+
+    <div class="lobby-side">
+      <section class="card map-card">
+        <div class="map-head">
+          <button id="map-prev" class="ghost map-arrow" title="Carte précédente" aria-label="Carte précédente">◀</button>
+          <div class="map-title">
+            <h3 id="map-name">Carte</h3>
+            <p id="map-meta" class="hint"></p>
+          </div>
+          <button id="map-next" class="ghost map-arrow" title="Carte suivante" aria-label="Carte suivante">▶</button>
+        </div>
+        <div class="map-preview"><svg id="map-preview" xmlns="http://www.w3.org/2000/svg"></svg></div>
+        <div class="map-foot">
+          <p id="map-desc" class="hint"></p>
+          <button id="btn-reshuffle" class="ghost small hidden" title="Tirer une nouvelle disposition">🎲 Nouveau tirage</button>
+        </div>
+        <button id="btn-balance" class="ghost small balance-toggle">📊 Afficher l'indice d'équilibrage</button>
+        <div id="balance" class="balance hidden">
+          <div class="balance-head">
+            <span>Indice d'équilibrage</span>
+            <span class="balance-score"><b id="balance-score">–</b>/100</span>
+            <span id="balance-label" class="tag"></span>
+          </div>
+          <div class="balance-rows">
+            <div class="balance-row"><span>Ressources</span><div class="bar"><i id="bal-res"></i></div><b id="bal-res-v"></b></div>
+            <div class="balance-row"><span>Numéros</span><div class="bar"><i id="bal-num"></i></div><b id="bal-num-v"></b></div>
+            <div class="balance-row"><span>Ports</span><div class="bar"><i id="bal-port"></i></div><b id="bal-port-v"></b></div>
+          </div>
+          <ul id="balance-details" class="balance-details"></ul>
+        </div>
+      </section>
+
+      <section class="card lobby-chat">
+        <h3>Discussion</h3>
+        <div id="lobby-chat-log" class="chat-log"></div>
+        <form id="lobby-chat-form" class="chat-form">
+          <input id="lobby-chat-input" maxlength="200" placeholder="Message…" autocomplete="off">
+          <button class="primary">Envoyer</button>
+        </form>
+      </section>
+    </div>
+  </div>
+</main>
+
+<!-- ============================== JEU ============================== -->
+<main id="screen-game" class="screen">
+  <div class="game-grid">
+
+    <aside id="panel-build" class="panel">
+      <h3 class="panel-title">Que construire ?</h3>
+      <div id="build-guide" class="build-guide"></div>
+    </aside>
+
+    <section id="board-area">
+      <div id="board-holder">
+        <svg id="board" xmlns="http://www.w3.org/2000/svg"></svg>
+      </div>
+      <div id="phase-banner" class="phase-banner"></div>
+      <div id="dice-box" class="dice-box hidden">
+        <div class="die" id="die1">-</div>
+        <div class="die" id="die2">-</div>
+        <div class="dice-total" id="dice-total"></div>
+      </div>
+      <div class="board-tools">
+        <button id="btn-zoom-in" class="ghost small" title="Zoom avant">+</button>
+        <button id="btn-zoom-out" class="ghost small" title="Zoom arrière">−</button>
+        <button id="btn-zoom-reset" class="ghost small" title="Recentrer">⟳</button>
+      </div>
+      <div id="hand-dock" class="hand-dock">
+        <button id="btn-trade" class="dock-btn trade" title="Échanger avec la banque, les ports ou les joueurs">
+          <span class="dock-ico">🤝</span><span class="dock-label">Échanger</span>
+        </button>
+        <div id="hand" class="hand"></div>
+        <button id="btn-turn" class="dock-btn turn" disabled>
+          <span class="dock-ico">🎲</span><span class="dock-label">Lancer les dés</span>
+        </button>
+        <div id="dev-hand" class="dev-hand"></div>
+      </div>
+    </section>
+
+    <aside id="panel-side" class="panel">
+      <section class="side-top">
+        <div class="tabs">
+          <button class="tab active" data-tab="log">Journal</button>
+          <button class="tab" data-tab="chat">Discussion</button>
+        </div>
+        <div id="tab-log" class="tab-body"><div id="game-log" class="chat-log"></div></div>
+        <div id="tab-chat" class="tab-body hidden">
+          <div id="game-chat-log" class="chat-log"></div>
+          <form id="game-chat-form" class="chat-form">
+            <input id="game-chat-input" maxlength="200" placeholder="Message…" autocomplete="off">
+            <button class="primary">OK</button>
+          </form>
+        </div>
+      </section>
+
+      <section class="side-bottom">
+        <div class="side-head">
+          <h3 class="panel-title">Joueurs</h3>
+          <span id="side-target" class="hint"></span>
+        </div>
+        <div id="side-players" class="side-players"></div>
+      </section>
+    </aside>
+
+    <footer id="panel-actions" class="panel">
+      <div id="actions" class="actions"></div>
+    </footer>
+  </div>
+</main>
+
+<!-- ============================== MODALES ============================== -->
+<div id="modal-root" class="modal-root hidden">
+  <div class="modal-backdrop"></div>
+  <div class="modal" id="modal-box">
+    <h3 id="modal-title">Titre</h3>
+    <div id="modal-content"></div>
+    <div id="modal-actions" class="modal-actions"></div>
+  </div>
+</div>
+
+<div id="tooltip" class="tooltip hidden"></div>
+<div id="toasts" class="toasts"></div>
+<div id="turn-announce" class="turn-announce hidden" aria-live="assertive">
+  <div class="ta-ico">🎲</div>
+  <div class="ta-title">À vous de jouer !</div>
+  <div class="ta-sub">Lancez les dés</div>
+</div>
+<div id="event-banner" class="event-banner hidden" role="alert" title="Cliquer pour fermer">
+  <div class="eb-kicker">⚡ Événement</div>
+  <div id="eb-title" class="eb-title"></div>
+  <div id="eb-text" class="eb-text"></div>
+</div>
+
+<script src="js/sound.js"></script>
+<script src="js/net.js"></script>
+<script src="js/board.js"></script>
+<script src="js/ui.js"></script>
+</body>
+</html>
