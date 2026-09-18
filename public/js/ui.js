@@ -764,6 +764,7 @@
     handleDice(state);
     handleEvents(state, first);
     handleSounds(state, first);
+    handleResourceGain(state, first);
     announceTurn(state);
     handleAutoModals(state);
     if (S.modalKind === 'players') showPlayers();
@@ -975,6 +976,124 @@
       RES.map((r) => RES_FR[r] + ' ' + you.ratios[r] + ':1').join(' · ') + '">' +
       '<b>' + total + '</b>carte' + (total > 1 ? 's' : '') +
       '</div>';
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* cartes gagnees : entree en grand, puis vol vers l inventaire        */
+  /* ------------------------------------------------------------------ */
+
+  const GAIN_MAX = 8;        // au-dela, le surplus est resume par un "+N"
+  const GAIN_STAGGER = 260;  // ms entre deux entrees de carte
+  const GAIN_IN = 420;       // duree de l entree : doit suivre gain-in dans le CSS
+  const GAIN_FLY = 380;      // duree du vol vers le socle
+  const GAIN_HOLD = 420;     // pause une fois toutes les cartes en place
+
+  /** Detecte les ressources gagnees en comparant la main a l envoi precedent.
+   *  Couvre d un coup la production, le commerce, le monopole et l invention. */
+  function handleResourceGain(state, first) {
+    const you = state.you;
+    if (!you) { S.prevRes = null; return; }
+    const cur = {};
+    RES.forEach((r) => { cur[r] = you.resources[r]; });
+    const prev = S.prevRes;
+    S.prevRes = cur;
+    if (first || !prev) return;   // arrivee dans la partie : on ne rejoue rien
+    const gained = [];
+    RES.forEach((r) => { for (let n = cur[r] - prev[r]; n > 0; n--) gained.push(r); });
+    if (gained.length) queueGain(gained);
+  }
+
+  // une production peut en suivre une autre : on les enchaine au lieu de les superposer
+  function queueGain(list) {
+    S.gainQueue = (S.gainQueue || []).concat([list]);
+    if (!S.gainBusy) nextGain();
+  }
+
+  function nextGain() {
+    const list = (S.gainQueue || []).shift();
+    if (!list) { S.gainBusy = false; return; }
+    S.gainBusy = true;
+    showGain(list, nextGain);
+  }
+
+  function showGain(list, done) {
+    const overlay = $('gain-overlay');
+    const shown = list.slice(0, GAIN_MAX);
+    const extra = list.length - shown.length;
+    overlay.innerHTML = '';
+    overlay.classList.remove('hidden');
+
+    const els = shown.map((r, i) => {
+      const d = document.createElement('div');
+      d.className = 'gain-card';
+      d.style.animationDelay = (i * GAIN_STAGGER) + 'ms';
+      d.innerHTML = '<img src="img/ressources/' + r + '.png" alt="' + esc(RES_FR[r]) + '">' +
+        '<span class="gain-name">' + esc(RES_FR[r]) + '</span>';
+      overlay.appendChild(d);
+      return d;
+    });
+    if (extra > 0) {
+      const more = document.createElement('div');
+      more.className = 'gain-more';
+      more.style.animationDelay = (shown.length * GAIN_STAGGER) + 'ms';
+      more.textContent = '+' + extra;
+      overlay.appendChild(more);
+    }
+
+    let arrived = 0;
+    const land = (d) => {
+      if (d.dataset.landed) return;
+      d.dataset.landed = '1';
+      d.style.animation = 'none';   // libere transform pour le vol
+      d.classList.add('in');
+      Sound.play('carte');          // le son part quand CETTE carte est en place
+      if (++arrived === els.length) {
+        clearTimeout(S.gainGuard);
+        clearTimeout(S.gainTimer);
+        S.gainTimer = setTimeout(() => flyToHand(els, shown, overlay, done), GAIN_HOLD);
+      }
+    };
+
+    els.forEach((d) => {
+      d.addEventListener('animationend', function onIn(e) {
+        if (e.animationName !== 'gain-in') return;
+        d.removeEventListener('animationend', onIn);
+        land(d);
+      });
+    });
+
+    // onglet en arriere-plan : les animations sont gelees et animationend ne
+    // se declenche jamais. Ce filet termine la sequence quoi qu il arrive.
+    clearTimeout(S.gainGuard);
+    S.gainGuard = setTimeout(() => els.forEach(land), els.length * GAIN_STAGGER + GAIN_IN + 800);
+  }
+
+  function flyToHand(els, resList, overlay, done) {
+    const hand = $('hand');
+    const slots = hand ? hand.querySelectorAll('.res-card') : [];
+    els.forEach((d, i) => {
+      const slot = slots[RES.indexOf(resList[i])];
+      const target = slot || hand;
+      const from = d.getBoundingClientRect();
+      const to = target ? target.getBoundingClientRect() : null;
+      if (to && from.width && to.width) {
+        d.style.setProperty('--fx', ((to.left + to.width / 2) - (from.left + from.width / 2)) + 'px');
+        d.style.setProperty('--fy', ((to.top + to.height / 2) - (from.top + from.height / 2)) + 'px');
+        d.style.setProperty('--fs', Math.max(0.12, to.width / from.width));
+      }
+      setTimeout(() => d.classList.add('flying'), i * 60);
+      if (slot) setTimeout(() => {
+        slot.classList.remove('bump');
+        void slot.offsetWidth;   // relance l animation
+        slot.classList.add('bump');
+      }, i * 60 + GAIN_FLY - 70);
+    });
+    clearTimeout(S.gainTimer);
+    S.gainTimer = setTimeout(() => {
+      overlay.classList.add('hidden');
+      overlay.innerHTML = '';
+      done();
+    }, els.length * 60 + GAIN_FLY + 120);
   }
 
   /** Boutons du socle : echanger (a gauche) et lancer les des / terminer le tour (a droite). */
@@ -1207,10 +1326,26 @@
 
     // plusieurs lignes peuvent arriver d un coup : un seul son par type
     const played = {};
+    let sawRobber = false;
     for (let i = from + 1; i < log.length; i++) {
-      const name = LOG_SFX[log[i].kind];
-      if (name && !played[name]) { played[name] = true; Sound.play(name); }
+      const kind = log[i].kind;
+      const name = LOG_SFX[kind];
+      if (!name) continue;
+      if (kind === 'robber') {
+        // un episode du voleur produit jusqu a quatre lignes reparties sur
+        // trois envois du serveur (jet du 7 et defausses, deplacement, vol) :
+        // on ne joue le son qu une fois pour l ensemble
+        sawRobber = true;
+        if (S.robberSounded) continue;
+        S.robberSounded = true;
+      }
+      if (!played[name]) { played[name] = true; Sound.play(name); }
     }
+
+    // l episode est clos des qu un envoi ne parle plus du voleur et que la
+    // partie est revenue a une phase ordinaire : le prochain 7 resonnera
+    const inRobber = state.phase === 'robber' || state.phase === 'steal';
+    if (!sawRobber && !inRobber) S.robberSounded = false;
   }
 
   function renderLog(state) {

@@ -16,7 +16,7 @@
     victoire:   { src: 'sound/victoire.mp3',   volume: 0.85, fade: 450 }
   };
 
-  const POOL = 3;        // lectures simultanees possibles par effet
+  const POOL = 4;        // lectures simultanees possibles par effet
   const THROTTLE = 90;   // ms : evite le doublon quand deux lignes arrivent ensemble
 
   const pools = {};      // nom -> { els: [Audio], next: index }

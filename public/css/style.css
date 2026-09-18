@@ -803,3 +803,69 @@ body.no-select, body.no-select * { user-select: none !important; -webkit-user-se
 }
 .spot.port-spot { fill: rgba(255,224,138,.35); stroke: #ffe08a; stroke-width: .06; }
 .boat { filter: drop-shadow(0 1px 2px rgba(0,0,0,.6)); }
+
+/* ------------- cartes gagnees : entree en grand, puis vol vers le socle ------------- */
+.gain-overlay {
+  position: fixed; inset: 0; z-index: 64;
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
+  gap: 14px; padding: 24px;
+  pointer-events: none;   /* purement decoratif : ne bloque jamais un clic */
+}
+.gain-overlay.hidden { display: none; }
+
+.gain-card {
+  width: 132px; flex: none; text-align: center; opacity: 0;
+  animation: gain-in .42s cubic-bezier(.2, .9, .3, 1.35) both;
+  filter: drop-shadow(0 14px 26px rgba(0, 0, 0, .6));
+}
+.gain-card img { display: block; width: 132px; height: 191px; object-fit: contain; }
+.gain-name {
+  display: block; margin-top: 6px; font-size: 13px; font-weight: 800; letter-spacing: .5px;
+  color: var(--gold); text-shadow: 0 2px 6px rgba(0, 0, 0, .85);
+}
+.gain-more {
+  align-self: center; font-size: 22px; font-weight: 800; color: var(--gold);
+  text-shadow: 0 2px 6px rgba(0, 0, 0, .85);
+  animation: gain-in .42s cubic-bezier(.2, .9, .3, 1.35) both;
+}
+
+@keyframes gain-in {
+  0%   { opacity: 0; transform: translateY(110px) scale(.55) rotate(-7deg); }
+  72%  { opacity: 1; transform: translateY(-12px) scale(1.07) rotate(1.5deg); }
+  100% { opacity: 1; transform: translateY(0) scale(1) rotate(0deg); }
+}
+
+/* etat stable : l animation d entree est retiree en JS pour liberer transform */
+.gain-card.in { opacity: 1; transform: none; }
+
+/* vol vers la case correspondante de l inventaire */
+.gain-card.flying {
+  transition: transform .38s cubic-bezier(.55, 0, .75, .2), opacity .38s ease-in;
+  transform: translate(var(--fx, 0), var(--fy, 0)) scale(var(--fs, .2)) rotate(6deg);
+  opacity: .15;
+}
+
+/* la case du socle tressaille quand la carte y atterrit */
+.res-card.bump { animation: res-bump .34s ease-out; }
+@keyframes res-bump {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+
+@media (max-width: 720px) {
+  .gain-overlay { gap: 8px; padding: 12px; }
+  .gain-card { width: 92px; }
+  .gain-card img { width: 92px; height: 133px; }
+  .gain-name { font-size: 11px; }
+}
+
+/* mouvement reduit : on garde le rythme et les sons, on retire les deplacements */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes gain-in {
+    0%   { opacity: 0; }
+    100% { opacity: 1; }
+  }
+  .gain-card.flying { transition: opacity .2s linear; transform: none; opacity: 0; }
+  .res-card.bump { animation: none; }
+}

@@ -220,6 +220,10 @@ function writeSave(room, kind) {
     kind,
     savedAt: Date.now(),
     summary: saveSummary(room, game),
+    // proprietaire = le createur du salon. Lui seul verra et pourra reprendre
+    // ou supprimer cette sauvegarde (voir canAccessSave).
+    ownerId: room.hostId || null,
+    ownerName: (room.members.find((m) => m.id === room.hostId) || {}).name || null,
     room: { name: room.name, solo: !!room.solo, settings: room.settings },
     game: game.toSave()
   };
@@ -256,13 +260,30 @@ function scheduleAutosave(room) {
   }, AUTOSAVE_DELAY);
 }
 
-function listSaves() {
+function readSave(id) {
+  const file = savePath(id);
+  if (!file) return null;
+  try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch (e) { return null; }
+}
+
+/** Une sauvegarde n appartient qu au createur du salon d origine.
+ *  Les sauvegardes anterieures a cette regle n ont pas de proprietaire
+ *  enregistre : elles restent accessibles a tous plutot que d etre perdues.
+ *  Videz le dossier saves/ si vous voulez appliquer la regle sans exception. */
+function canAccessSave(data, playerId) {
+  if (!data) return false;
+  if (!data.ownerId) return true;
+  return data.ownerId === playerId;
+}
+
+function listSaves(playerId) {
   let files = [];
   try { files = fs.readdirSync(SAVE_DIR).filter((f) => f.endsWith('.json')); } catch (e) { return []; }
   const out = [];
   for (const f of files) {
     try {
       const data = JSON.parse(fs.readFileSync(path.join(SAVE_DIR, f), 'utf8'));
+      if (!canAccessSave(data, playerId)) continue;
       out.push({ id: data.id, kind: data.kind, savedAt: data.savedAt, summary: data.summary });
     } catch (e) { /* fichier illisible : ignore */ }
   }
@@ -625,7 +646,7 @@ wss.on('connection', (conn) => {
       }
 
       case 'listSaves':
-        conn.send({ type: 'saves', saves: listSaves() });
+        conn.send({ type: 'saves', saves: listSaves(client.id) });
         break;
 
       case 'saveGame': {
@@ -643,16 +664,23 @@ wss.on('connection', (conn) => {
       case 'deleteSave': {
         const id = sanitize(msg.id, 64);
         if (!savePath(id)) break;
+        const data = readSave(id);
+        if (!canAccessSave(data, client.id)) {
+          fail('Cette sauvegarde ne vous appartient pas.');
+          conn.send({ type: 'saves', saves: listSaves(client.id) });
+          break;
+        }
         deleteSaveFile(id);
-        conn.send({ type: 'saves', saves: listSaves() });
+        conn.send({ type: 'saves', saves: listSaves(client.id) });
         break;
       }
 
       case 'loadSave': {
-        const file = savePath(sanitize(msg.id, 64));
-        let data = null;
-        try { data = file && JSON.parse(fs.readFileSync(file, 'utf8')); } catch (e) { data = null; }
+        const data = readSave(sanitize(msg.id, 64));
         if (!data || !data.game) { fail('Sauvegarde introuvable ou illisible.'); break; }
+        // meme reponse que pour une sauvegarde absente : on ne revele pas
+        // l existence des parties des autres joueurs
+        if (!canAccessSave(data, client.id)) { fail('Sauvegarde introuvable ou illisible.'); break; }
         // une partie deja reprise dans un salon ouvert : on le rejoint
         const open = Array.from(rooms.values()).find((r) => (r.resume && r.resume.gameId === data.gameId) ||
           (r.game && r.saveId === data.gameId));
