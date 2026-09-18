@@ -157,8 +157,13 @@ class WSConnection extends EventEmitter {
 }
 
 class WSServer extends EventEmitter {
-  constructor(httpServer) {
+  /**
+   * options.verifyOrigin : (origin, req) => bool. Appelee avant le handshake.
+   * Renvoyer false refuse la connexion avec un 403 (voir ALLOWED_ORIGINS).
+   */
+  constructor(httpServer, options) {
     super();
+    this.verifyOrigin = (options || {}).verifyOrigin || null;
     this.clients = new Set();
     httpServer.on('upgrade', (req, socket, head) => this._upgrade(req, socket, head));
     this.heartbeat = setInterval(() => {
@@ -174,6 +179,10 @@ class WSServer extends EventEmitter {
     const key = req.headers['sec-websocket-key'];
     if (req.headers.upgrade !== 'websocket' || !key) {
       socket.end('HTTP/1.1 400 Bad Request\r\n\r\n');
+      return;
+    }
+    if (this.verifyOrigin && !this.verifyOrigin(req.headers.origin || '', req)) {
+      socket.end('HTTP/1.1 403 Forbidden\r\n\r\n');
       return;
     }
     const accept = crypto.createHash('sha1').update(key + GUID).digest('base64');

@@ -1,0 +1,19 @@
+# Deploiement du serveur de jeu sur Render (https://render.com).
+# Render lit ce fichier automatiquement : New > Blueprint > choisir ce depot.
+services:
+  - type: web
+    name: catan-serveur
+    runtime: node
+    plan: free
+    region: frankfurt
+    # aucune dependance externe : rien a installer
+    buildCommand: "echo aucune dependance"
+    startCommand: "node server.js"
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      # A renseigner dans l interface Render : l origine exacte du site publie,
+      # par exemple https://stanmandel.github.io (sans chemin ni barre finale).
+      - key: ALLOWED_ORIGINS
+        sync: false

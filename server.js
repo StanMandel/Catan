@@ -19,8 +19,35 @@ const Bot = require('./src/bot');
 
 const PORT = Number(process.argv[2] || process.env.PORT || 3000);
 const PUBLIC_DIR = path.join(__dirname, 'public');
-const SAVE_DIR = path.join(__dirname, 'saves');
+const SAVE_DIR = process.env.SAVE_DIR || path.join(__dirname, 'saves');
 const AUTOSAVE_DELAY = 2000;
+
+/* Origines autorisees a ouvrir une WebSocket.
+   Vide (defaut reseau local) : aucun filtrage, tout le monde peut se connecter.
+   Renseignee (mise en ligne) : seules ces origines sont acceptees, ce qui evite
+   qu un autre site fasse jouer vos visiteurs sur ce serveur a leur insu.
+     ALLOWED_ORIGINS="https://stanmandel.github.io,http://localhost:3000" */
+const ALLOWED_ORIGINS = String(process.env.ALLOWED_ORIGINS || '')
+  .split(',')
+  .map(normOrigin)
+  .filter(Boolean);
+
+function normOrigin(o) {
+  let v = String(o || '').trim().toLowerCase();
+  while (v.endsWith('/')) v = v.slice(0, -1);
+  return v;
+}
+
+function verifyOrigin(origin, req) {
+  if (!ALLOWED_ORIGINS.length) return true;   // mode reseau local : on ne filtre pas
+  if (!origin) return true;                   // client non navigateur : l origine n est de toute facon pas une garantie
+  const o = normOrigin(origin);
+  if (ALLOWED_ORIGINS.includes(o)) return true;
+  // ce serveur sert aussi le site : on accepte toujours sa propre origine
+  try { if (new URL(origin).host === req.headers.host) return true; } catch (e) {}
+  console.warn('WebSocket refusee, origine non autorisee : ' + origin);
+  return false;
+}
 
 const COLORS = [
   { id: 'red', label: 'Rouge', hex: '#d6383a' },
@@ -49,6 +76,12 @@ const MIME = {
 
 const server = http.createServer((req, res) => {
   let urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
+  // sonde de sante de l hebergeur, et cible des pings anti-mise en veille
+  if (urlPath === '/healthz') {
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end(JSON.stringify({ ok: true, rooms: rooms.size, players: clients.size, uptime: Math.round(process.uptime()) }));
+    return;
+  }
   if (urlPath === '/') urlPath = '/index.html';
   const filePath = path.join(PUBLIC_DIR, path.normalize(urlPath).replace(/^([/\\])+/, ''));
   if (!filePath.startsWith(PUBLIC_DIR)) {
@@ -408,7 +441,7 @@ function leaveRoom(client, silent) {
 /* WebSocket                                                        */
 /* ---------------------------------------------------------------- */
 
-const wss = new WSServer(server);
+const wss = new WSServer(server, { verifyOrigin: verifyOrigin });
 
 wss.on('connection', (conn) => {
   let client = null;
@@ -888,6 +921,14 @@ server.listen(PORT, '0.0.0.0', () => {
     for (const a of addrs) console.log('      http://' + a.address + ':' + PORT + '   (' + a.name + ')');
   } else {
     console.log('    (aucune interface reseau detectee)');
+  }
+  console.log('');
+  if (ALLOWED_ORIGINS.length) {
+    console.log('    Mode en ligne : origines autorisees');
+    for (const o of ALLOWED_ORIGINS) console.log('      ' + o);
+  } else {
+    console.log('    Mode reseau local : toutes les origines sont acceptees.');
+    console.log('    En ligne, definissez ALLOWED_ORIGINS (voir DEPLOIEMENT.md).');
   }
   console.log('');
   console.log('    Ctrl+C pour arreter le serveur.');

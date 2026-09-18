@@ -1,8 +1,12 @@
-# Catan — jeu de société en réseau local
+# Catan — jeu de société en réseau local et en ligne
 
 Réimplémentation web complète des *Colons de Catan* (jeu de base), jouable à
-plusieurs sur le même réseau local : un lobby permet de créer ou rejoindre des
-parties, puis tout le monde joue en temps réel dans le navigateur.
+plusieurs sur le même réseau local ou sur Internet : un lobby permet de créer
+ou rejoindre des parties, puis tout le monde joue en temps réel dans le
+navigateur.
+
+Pour la mise en ligne (GitHub Pages + hébergeur Node), voir
+**[DEPLOIEMENT.md](DEPLOIEMENT.md)**.
 
 **Aucune dépendance à installer** : uniquement Node.js (le serveur WebSocket est
 écrit à la main avec les modules natifs).
@@ -207,9 +211,14 @@ src/mods.js          registre des mods (contenu additionnel, crochets de partie)
 public/index.html    interface (accueil, salon, partie)
 public/css/style.css thème bois/parchemin
 public/img/          photos des pièces (route, colonie, ville, carte)
+public/js/config.js  adresse du serveur de jeu (vide = même machine)
 public/js/net.js     client WebSocket et reconnexion
+public/js/sound.js   effets sonores (préchargement, volume)
+public/sound/        effets sonores (mp3)
 public/js/board.js   rendu SVG du plateau (tuiles dessinées, jetons, pions)
 public/js/ui.js      logique d'interface, modales, échanges
+render.yaml          déploiement du serveur de jeu (Render)
+.github/workflows/   publication du site sur GitHub Pages
 ```
 
 Le serveur est **autoritaire** : le client n'envoie que des intentions, toutes

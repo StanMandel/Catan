@@ -1637,8 +1637,15 @@
     });
 
     Net.on('status', (ok) => {
-      $('conn-status').textContent = ok ? 'Connecté' : 'Reconnexion…';
-      $('conn-status').className = 'conn ' + (ok ? 'online' : 'offline');
+      const el = $('conn-status');
+      // les hebergeurs gratuits mettent le serveur en veille apres inactivite :
+      // le premier reveil peut demander une bonne minute, autant le dire
+      const waking = !ok && Net.retries >= 3;
+      el.textContent = ok ? 'Connecté' : (waking ? 'Réveil du serveur…' : 'Reconnexion…');
+      el.title = waking
+        ? 'Le serveur de jeu sort de veille, cela peut prendre jusqu à une minute. La connexion se fera toute seule.'
+        : '';
+      el.className = 'conn ' + (ok ? 'online' : 'offline');
     });
     Net.on('welcome', (m) => {
       S.me = m.playerId;
